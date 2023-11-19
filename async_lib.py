@@ -5,6 +5,7 @@ import ffmpeg
 import requests
 from ffmpeg import Stream
 from pytube import Stream, YouTube, Search
+import constants as conf
 
 class BaseAsync(threading.Thread):
 	def __init__(self):
@@ -22,8 +23,7 @@ class AsyncDownloader(BaseAsync):
 		self.song = song
 		self.song.register_on_progress_callback(self.onDownloadProgress)
 		self.song.register_on_complete_callback(self.onDownloadComplete)
-		self.filename = str(song.video_id) + ".mp3"
-		self.CACHE_PATH = "./cache/"
+		self.filename = str(song.video_id) + conf.DEFAULT_AUDIO_EXT
 		self.audio: Stream = None
 
 	def onDownloadProgress(self, stream: Stream, chunk: bytes, bytes_remaining):
@@ -43,17 +43,15 @@ class AsyncDownloader(BaseAsync):
 		super().run()
 		self.audio: Stream = self.song.streams.filter(only_audio=True).first()
 		self.message = "Descargando"
-		self.audio.download(self.CACHE_PATH, self.filename)
+		self.audio.download(conf.CACHE_PATH, self.filename)
 		self.message = "Listo"
 
 
 class AsyncConverter(BaseAsync):
-	def __init__(self, filename: str, title: str, progress_callback: callable = None, complete_callback: callable = None, chunk_size: int = 4096):
+	def __init__(self, filename: str, title: str, progress_callback: callable = None, complete_callback: callable = None, chunk_size: int = conf.DEFAULT_CHUNK_SIZE):
 		super().__init__()
 		self.filename = filename
 		self.song_title = title
-		self.output_path = "./songs/"
-		self.cache_path = "./cache/"
 		self.chunk_size = chunk_size
 		self.progress_callback = progress_callback
 		self.complete_callback = complete_callback
@@ -79,8 +77,8 @@ class AsyncConverter(BaseAsync):
 
 	def convertAudio(self):
 		filename, title = self.filename, self.song_title
-		output_path = self.output_path + (title[0:50] if len(title) > 51 else title) + ".mp3"
-		input_path = self.cache_path + filename
+		output_path = conf.OUTPUT_PATH + (title[0:50] if len(title) > 51 else title) + ".mp3"
+		input_path = conf.CACHE_PATH + filename
 		song_size = os.stat(input_path).st_size
 		stream = ffmpeg.input(input_path)
 		audio_stream = stream.audio
@@ -109,64 +107,9 @@ class AsyncConverter(BaseAsync):
 		self.message = "Listo"
 		self.onCompleteHandler(input_path)
 
-		#process.wait()
-		#reader = ffmpeg.
-		#reader.stdin.close()
-		# process2.wait()
-
-		# input_file = ffmpeg.input(input_path)
-		#
-		# print(ffmpeg.probe(input_path))
-		#
-		# format = "s16le"
-		# format = "f32le"
-		# format = "f64le"
-		#
-		#
-		# process1: Popen = (
-		# 	ffmpeg
-		# 	.output(input_file,'pipe:', format=format)
-		# 	.run_async(pipe_stdout=True)
-		# )
-		# audio = (ffmpeg
-		#          .input('pipe:', format=format)
-		#          .audio)
-		# process2: Popen = (
-		# 	ffmpeg
-		# 	.output(audio, output_path)
-		# 	.overwrite_output()
-		# 	.run_async(pipe_stdin=True)
-		# )
-		#
-		# bytes_remaining = song_size
-		#
-		# self.message = "Convirtiendo..."
-		#
-		# while True:
-		# 	in_bytes = process1.stdout.read(self.chunk_size)
-		# 	if not in_bytes:
-		# 		break
-		# 	chunk = (
-		# 		np
-		# 		.frombuffer(in_bytes, np.uint8)
-		# 	)
-		# 	if not self.progress_callback is None:
-		# 		self.progress_callback(song_size, bytes_remaining)
-		#
-		# 	bytes_downloaded = song_size - bytes_remaining
-		# 	percent = bytes_downloaded / song_size * 100
-		# 	self.percent = int(percent)
-		# 	#print(song_size, bytes_remaining, self.percent)
-		# 	process2.stdin.write(chunk.tobytes())
-		# 	bytes_remaining -= chunk.size
-		#
-		# process2.stdin.close()
-		# process1.wait()
-		# process2.wait()
-
 
 class AsyncSearcher(BaseAsync):
-	def __init__(self, query: str, pages: int = 1, progress_callback: callable = None, complete_callback: callable = None):
+	def __init__(self, query: str, pages: int = conf.DEFAULT_PAGES_COUNT, progress_callback: callable = None, complete_callback: callable = None):
 		super().__init__()
 		self.query = query
 		self.songs = []
@@ -197,14 +140,14 @@ class AsyncSearcher(BaseAsync):
 				self.songs.append(e)
 				self.onProgressHandler(e)
 				url = e.thumbnail_url
-				filename = "./metadata/" + str(e.video_id) + ".jpg"
+				filename = conf.METADATA_PATH + str(e.video_id) + ".jpg"
 				thumbnail_process = AsyncThumbnailLoader(url, filename)
 				thumbnail_process.start()
 			self.query = str(search.get_next_results())
 		self.message = str(len(self.songs)) + " resultados"
 		self.onCompleteHandler()
 
-	def next(self, pages: int = 1):
+	def next(self, pages: int = conf.DEFAULT_PAGES_COUNT):
 		self.pages = pages
 		self.songs.clear()
 

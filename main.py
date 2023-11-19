@@ -13,6 +13,8 @@ import ffmpeg
 from async_lib import AsyncDownloader, AsyncConverter, AsyncSearcher, AsyncThumbnailLoader
 import os
 
+import constants as conf
+
 #pyrequest.default_range_size = 9437184  # 9MB chunk size
 #pyrequest.default_range_size = 137184  # 137KB chunk size
 #pyrequest.default_range_size = 7168  # 7KB chunk size
@@ -21,23 +23,20 @@ pyrequest.default_range_size = 4096  # 4KB chunk size
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.METADATA_PATH = "./metadata/"
-        self.OUTPUT_PATH = "./songs/"
-        self.CACHE_PATH = "./cache/"
 
         try:
-            if not os.path.exists(self.METADATA_PATH):
-                os.mkdir(self.METADATA_PATH)
+            if not os.path.exists(conf.METADATA_PATH):
+                os.mkdir(conf.METADATA_PATH)
             else:
                 print("La carpeta 'metadata' ya existe!")
 
-            if not os.path.exists(self.CACHE_PATH):
-                os.mkdir(self.CACHE_PATH)
+            if not os.path.exists(conf.CACHE_PATH):
+                os.mkdir(conf.CACHE_PATH)
             else:
                 print("La carpeta 'cache' ya existe!")
 
-            if not os.path.exists(self.OUTPUT_PATH):
-                os.mkdir(self.OUTPUT_PATH)
+            if not os.path.exists(conf.OUTPUT_PATH):
+                os.mkdir(conf.OUTPUT_PATH)
             else:
                 print("La carpeta 'songs' ya existe!")
         except Exception:
@@ -46,7 +45,8 @@ class App(tk.Tk):
         #setting title
         #s = ttk.Style()
         #s.theme_use('clam')
-        self.title("MP3 Converter & Download")
+        self.title("YouTune - Music Downloader")
+
         #setting window size
         width=800
         height=600
@@ -179,7 +179,7 @@ class App(tk.Tk):
     def onDownloadClickEvent(self):
         self.MessageLabel["text"] = "Preparando"
         self.DownloadButton['state'] = tk.DISABLED
-        index = self.ResultsListBox.curselection()[0]
+        index = self.ResultsListBox.selection()[0]
         song: YouTube = self.songs[index]
         filename = str(song.video_id) + ".mp3"
 
@@ -217,14 +217,14 @@ class App(tk.Tk):
 
     def onSelectItemEvent(self):
         try:
-            index = self.ResultsListBox.curselection()[0]
+            index = self.ResultsListBox.selection()[0]
         except Exception:
             return
         song: YouTube = self.songs[index]
         self.InfoLabel["text"] = "Titulo: " + song.title
 
         url = song.thumbnail_url
-        filename = "./metadata/" + str(song.video_id) + ".jpg"
+        filename = conf.METADATA_PATH + str(song.video_id) + ".jpg"
         if os.path.exists(filename):
             self.ThumbnailImage = ImageTk.PhotoImage(self.rescale(filename))
             self.ThumbnailCanvas.itemconfig(self.ThumbnailImageId, image=self.ThumbnailImage)

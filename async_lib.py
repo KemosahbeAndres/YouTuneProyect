@@ -134,18 +134,28 @@ class AsyncSearcher(BaseAsync):
 	def run(self):
 		#Searching...
 		self.message = "Buscando..."
-		for j in range(self.pages):
-			search = Search(self.query)
-			for e in search.results:
-				self.songs.append(e)
-				self.onProgressHandler(e)
-				url = e.thumbnail_url
-				filename = conf.METADATA_PATH + str(e.video_id) + ".jpg"
-				thumbnail_process = AsyncThumbnailLoader(url, filename)
-				thumbnail_process.start()
-			self.query = str(search.get_next_results())
+
+		while len(self.songs) < (self.pages*conf.DEFAULT_SONGS_PER_PAGE):
+			self.search()
+
 		self.message = str(len(self.songs)) + " resultados"
 		self.onCompleteHandler()
+
+	def search(self):
+		search = Search(self.query)
+		for e in search.results:
+			#import pytube
+			#try:
+			#	live = e.streams.first().is_live
+			#except pytube.exceptions.LiveStreamError:
+			#	continue
+			self.songs.append(e)
+			self.onProgressHandler(e)
+			url = e.thumbnail_url
+			filename = conf.METADATA_PATH + str(e.video_id) + ".jpg"
+			thumbnail_process = AsyncThumbnailLoader(url, filename)
+			thumbnail_process.start()
+		self.query = str(search.get_next_results())
 
 	def next(self, pages: int = conf.DEFAULT_PAGES_COUNT):
 		self.pages = pages

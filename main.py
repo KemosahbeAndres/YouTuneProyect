@@ -5,6 +5,7 @@ from tkinter import ttk
 import tkinter.ttk
 from threading import Thread
 
+import pytube.exceptions
 import requests
 from tkinter import Listbox, Canvas, PhotoImage
 from pytube import Search, YouTube, StreamQuery, Stream, request as pyrequest
@@ -58,13 +59,7 @@ class App(tk.Tk):
 
         self.songs = []
 
-        self.SearchEdit=tk.Entry(self)
-        self.SearchEdit["borderwidth"] = "1px"
-        self.font = tkFont.Font(family='Arial',size=13)
-        self.SearchEdit["font"] = self.font
-        self.SearchEdit["fg"] = "#333333"
-        self.SearchEdit["justify"] = "left"
-        self.SearchEdit.place(x=110, y=10, width=335, height=36)
+        self.font = tkFont.Font(family='Arial', size=13)
 
         self.SearchLabel=tk.Label(self)
         self.SearchLabel["font"] = self.font
@@ -72,7 +67,24 @@ class App(tk.Tk):
         self.SearchLabel["justify"] = "right"
         self.SearchLabel["anchor"] = "e"
         self.SearchLabel["text"] = "Busqueda:"
-        self.SearchLabel.place(x=20, y=10, width=88, height=36)
+        self.SearchLabel.place(x=20, y=10, width=90, height=36)
+
+        self.SearchEdit=tk.Entry(self)
+        self.SearchEdit["borderwidth"] = "0px"
+        self.SearchEdit["font"] = self.font
+        self.SearchEdit["fg"] = "#333333"
+        self.SearchEdit["justify"] = "left"
+        self.SearchEdit.place(x=120, y=14, width=500, height=26)
+        self.SearchEdit.bind("<Return>", lambda evt: self.onSearchClickEvent())
+
+        self.SearchButton = tk.Button(self)
+        self.SearchButton["bg"] = "#f0f0f0"
+        self.SearchButton["font"] = self.font
+        self.SearchButton["fg"] = "#000000"
+        self.SearchButton["justify"] = "right"
+        self.SearchButton["text"] = "Buscar"
+        self.SearchButton.place(x=640, y=10, width=140, height=30)
+        self.SearchButton["command"] = self.onSearchClickEvent
 
         self.MessageLabel = tk.Label(self)
         self.MessageLabel["font"] = self.font
@@ -88,7 +100,7 @@ class App(tk.Tk):
         self.ProgressLabel["justify"] = "left"
         self.ProgressLabel["text"] = "0%"
         self.ProgressLabel["anchor"] = "w"
-        self.ProgressLabel.place(x=460, y=285, width=150, height=36)
+        self.ProgressLabel.place(x=460, y=605, width=150, height=36)
 
         self.InfoLabel = tk.Label(self)
         self.InfoLabel["font"] = self.font
@@ -96,31 +108,27 @@ class App(tk.Tk):
         self.InfoLabel["justify"] = "left"
         self.InfoLabel["anchor"] = "nw"
         self.InfoLabel["text"] = "Titulo:"
-        self.InfoLabel.place(x=20, y=284, width=width-200, height=36)
-
-        self.SearchButton=tk.Button(self)
-        self.SearchButton["bg"] = "#f0f0f0"
-        self.SearchButton["font"] = self.font
-        self.SearchButton["fg"] = "#000000"
-        self.SearchButton["justify"] = "right"
-        self.SearchButton["text"] = "Buscar"
-        self.SearchButton.place(x=460, y=10, width=140, height=36)
-        self.SearchButton["command"] = self.onSearchClickEvent
+        self.InfoLabel.place(x=20, y=564, width=width-200, height=36)
 
         self.ListScrollbar = tk.Scrollbar(
             self,
             orient=tk.VERTICAL,
         )
-        self.ListScrollbar.place(x=430, y=60, width=20, height=220)
+        self.ListScrollbar.place(x=760, y=60, width=20, height=220)
 
-        self.ResultsListBox= ttk.Treeview(self, column=("c1", "c2"), selectmode="browse", show='headings', yscrollcommand=self.ListScrollbar.set)
-        self.ResultsListBox.place(x=20, y=60, width=410, height=220)
-        self.ResultsListBox.column("# 1", anchor=tk.W)
-        self.ResultsListBox.heading("# 1", text="Titulo")
-        self.ResultsListBox.column("# 2", anchor=tk.CENTER)
-        self.ResultsListBox.heading("# 2", text="Duracion")
+        self.ResultsListTree= ttk.Treeview(self, columns=("c1", "c2", "c3", "c4"), selectmode="browse", show='headings', yscrollcommand=self.ListScrollbar.set, )
+        self.ResultsListTree.column("# 1", anchor=tk.W)
+        self.ResultsListTree.heading("# 1", text="Titulo")
+        self.ResultsListTree.column("# 2", anchor=tk.CENTER, width=80)
+        self.ResultsListTree.heading("# 2", text="Duracion")
+        self.ResultsListTree.column("# 3", anchor=tk.W, width=100)
+        self.ResultsListTree.heading("# 3", text="Autor")
+        self.ResultsListTree.column("# 4", anchor=tk.W)
+        self.ResultsListTree.heading("# 4", text="Fecha creacion")
+        self.ResultsListTree.place(x=20, y=60, width=740, height=220)
+        self.ResultsListTree.bind("<<TreeviewSelect>>", lambda evt: self.onSelectItemEvent())
 
-        self.ListScrollbar.config(command=self.ResultsListBox.yview)
+        self.ListScrollbar.config(command=self.ResultsListTree.yview)
 
         #self.ResultsListBox.bind('<<ListboxSelect>>', lambda evt: self.onSelectItemEvent())
 
@@ -130,10 +138,13 @@ class App(tk.Tk):
         self.DownloadButton["fg"] = "#000000"
         self.DownloadButton["justify"] = "center"
         self.DownloadButton["text"] = "Descargar"
-        self.DownloadButton.place(x=460, y=60, width=140, height=36)
+        self.DownloadButton.place(x=460, y=300, width=140, height=36)
         self.DownloadButton["command"] = self.onDownloadClickEvent
 
         self.ThumbnailWidth, self.ThumbnailHeight = 140, 140
+        self.ThumbnailImage = ImageTk.PhotoImage(self.rescale("./image.png"))
+        self.ThumbnailHeight = self.ThumbnailImage.height()
+        print(self.ThumbnailHeight)
 
         self.ThumbnailCanvas = Canvas(
             self,
@@ -144,14 +155,15 @@ class App(tk.Tk):
             highlightthickness = 0,
             relief = "ridge"
         )
-        self.ThumbnailCanvas.place(x=460, y=106)
+        self.ThumbnailCanvas.place(x=20, y=300)
 
-        self.ThumbnailImage = ImageTk.PhotoImage(self.rescale("./image.png"))
         self.ThumbnailImageId = self.ThumbnailCanvas.create_image(self.ThumbnailWidth/2,self.ThumbnailHeight/2, anchor="center",image=self.ThumbnailImage)
 
     def onSearchClickEvent(self):
         text = self.SearchEdit.get()
-        self.ResultsListBox.delete()
+        # Clear TreeView
+        for item in self.ResultsListTree.get_children():
+            self.ResultsListTree.delete(item)
         self.songs.clear()
         if len(text) <= 0: return
         self.SearchButton['state'] = tk.DISABLED
@@ -161,12 +173,35 @@ class App(tk.Tk):
 
     def onSearchProgress(self, song: YouTube):
         self.songs.append(song)
+
         minutos = int(song.length//60)
         segundos = song.length - (minutos*60)
-        prefix = ""
+        horas = 0
+        if minutos > 59:
+            horas = int(minutos // 60)
+            minutos = minutos - (horas*60)
+        s_prefix = ""
+        m_prefix = ""
+        h_prefix = ""
         if segundos < 10:
-            prefix = "0"
-        self.ResultsListBox.insert('', 'end', text=song.title, values=(song.title, str(minutos)+":"+prefix+str(segundos)))
+            s_prefix = "0"
+        if minutos < 10:
+            m_prefix = "0"
+        if horas < 10:
+            h_prefix = "0"
+
+        self.ResultsListTree.insert(
+            '',
+            'end',
+            iid=len(self.songs)-1,
+            text=song.title,
+            values=(
+                song.title,
+                h_prefix + str(horas) + ":" + m_prefix + str(minutos) + ":" + s_prefix + str(segundos),
+                song.author,
+                song.publish_date.date()
+            )
+        )
 
     def searchMonitor(self, thread: AsyncSearcher):
         if thread.is_alive():
@@ -179,13 +214,15 @@ class App(tk.Tk):
     def onDownloadClickEvent(self):
         self.MessageLabel["text"] = "Preparando"
         self.DownloadButton['state'] = tk.DISABLED
-        index = self.ResultsListBox.selection()[0]
-        song: YouTube = self.songs[index]
-        filename = str(song.video_id) + ".mp3"
-
-        download_process = AsyncDownloader(song, callback=self.onDownloadComplete)
-        download_process.start()
-        self.downloadMonitor(download_process)
+        try:
+            index = int(self.ResultsListTree.selection()[0])
+            song: YouTube = self.songs[index]
+            download_process = AsyncDownloader(song, callback=self.onDownloadComplete)
+            download_process.start()
+            self.downloadMonitor(download_process)
+        except Exception as e:
+            print(e)
+            self.DownloadButton['state'] = tk.NORMAL
 
     def onDownloadComplete(self, source: str, title: str):
         convert_process = AsyncConverter(source, title, complete_callback=self.onConvertComplete)
@@ -217,30 +254,39 @@ class App(tk.Tk):
 
     def onSelectItemEvent(self):
         try:
-            index = self.ResultsListBox.selection()[0]
-        except Exception:
-            return
-        song: YouTube = self.songs[index]
-        self.InfoLabel["text"] = "Titulo: " + song.title
+            #print(self.ResultsListTree.selection()[0])
+            index = int(self.ResultsListTree.selection()[0])
+            song: YouTube = self.songs[index]
+            self.InfoLabel["text"] = "Titulo: " + song.title
 
-        url = song.thumbnail_url
-        filename = conf.METADATA_PATH + str(song.video_id) + ".jpg"
-        if os.path.exists(filename):
-            self.ThumbnailImage = ImageTk.PhotoImage(self.rescale(filename))
-            self.ThumbnailCanvas.itemconfig(self.ThumbnailImageId, image=self.ThumbnailImage)
-        else:
-            thumbnailprocess = AsyncThumbnailLoader(url, filename, complete_callback=self.onThumbLoadComplete)
-            thumbnailprocess.start()
+            url = song.thumbnail_url
+            filename = conf.METADATA_PATH + str(song.video_id) + ".jpg"
+            if os.path.exists(filename):
+                self.ThumbnailImage = ImageTk.PhotoImage(self.rescale(filename))
+                self.ThumbnailCanvas.itemconfig(self.ThumbnailImageId, image=self.ThumbnailImage)
+            else:
+                thumbnailprocess = AsyncThumbnailLoader(url, filename, complete_callback=self.onThumbLoadComplete)
+                thumbnailprocess.start()
+        except Exception as e:
+            print(e)
 
     def onThumbLoadComplete(self, filename: str):
         self.ThumbnailImage = ImageTk.PhotoImage(self.rescale(filename))
         self.ThumbnailCanvas.itemconfig(self.ThumbnailImageId, image=self.ThumbnailImage)
+        self.ThumbnailCanvas.config(height=self.ThumbnailImage.height())
 
     def rescale(self, filename):
         image = Image.open(filename)
-        factor = round(image.width / image.height, 6)
-        height = round(self.ThumbnailWidth / factor, 6)
-        return image.resize((int(self.ThumbnailWidth), int(height)), Image.ANTIALIAS)
+        if image.width >= image.height:
+            factor = round(image.width / image.height, 6)
+            height = round(self.ThumbnailWidth / factor, 6)
+            width = self.ThumbnailWidth
+        else:
+            factor = round(image.height / image.width, 6)
+            height = self.ThumbnailHeight
+            width = round(self.ThumbnailHeight / factor, 6)
+
+        return image.resize((int(width), int(height)), Image.ANTIALIAS)
 
 if __name__ == "__main__":
     app = App()
